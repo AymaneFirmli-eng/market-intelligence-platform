@@ -8,6 +8,7 @@ Minimalistic Retrieval-Augmented Generation (RAG) pipeline:
 
 import pandas as pd
 import psycopg
+
 from src.credentials import DB_PARAMS
 
 

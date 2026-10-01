@@ -4,15 +4,17 @@ Extracts raw data from 'bronze_products', applies regex-based transformations,
 type castings, and data filtering, then loads structured records into 'silver_products'.
 """
 
-from __future__ import annotations  # Enable PEP 563 type hint annotations for Python <3.10
+from __future__ import (
+    annotations,  # Enable PEP 563 type hint annotations for Python <3.10
+)
+
 import re
-import psycopg
+
 import pandas as pd
+import psycopg
 
 # Database connection parameters
 from src.credentials import DB_PARAMS
-
-
 
 # Rating mapping dictionary: converts textual word ratings to integers
 RATING_MAP = {

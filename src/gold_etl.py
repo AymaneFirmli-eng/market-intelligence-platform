@@ -1,6 +1,5 @@
-import psycopg
 import pandas as pd
-import numpy as np
+import psycopg
 
 DB_PARAMS = {
     "dbname": "ecomarket_db",

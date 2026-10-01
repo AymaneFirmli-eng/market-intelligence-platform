@@ -5,15 +5,14 @@ Pydantic for schema validation, and Psycopg for idempotent PostgreSQL UPSERT.
 """
 
 from __future__ import annotations
+
 import httpx
-from selectolax.parser import HTMLParser
-from pydantic import BaseModel, Field
 import psycopg
+from pydantic import BaseModel, Field
+from selectolax.parser import HTMLParser
 
 # PostgreSQL connection parameters
 from src.credentials import DB_PARAMS
-
-
 
 
 # ------------------------------------------------------------------------------
@@ -107,10 +106,9 @@ def save_to_bronze(products: list[RawProduct]) -> None:
         for p in products
     ]
 
-    with psycopg.connect(**DB_PARAMS) as conn:
-        with conn.cursor() as cur:
-            cur.executemany(sql, records)
-            conn.commit()
+    with psycopg.connect(**DB_PARAMS) as conn, conn.cursor() as cur:
+        cur.executemany(sql, records)
+        conn.commit()
 
 # ------------------------------------------------------------------------------
 # MULTI-PAGE SCRAPING ORCHESTRATION
