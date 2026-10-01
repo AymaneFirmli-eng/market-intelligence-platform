@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
-src/credentials.py
+#src/credentials.py
 
 # Data & Models
 data/raw/*
