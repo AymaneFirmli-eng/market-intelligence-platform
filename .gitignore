@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+# Data & Models
+data/raw/*
+data/processed/*
+*.joblib
+*.pkl
+
+# VS Code & macOS
+.vscode/
+.DS_Store

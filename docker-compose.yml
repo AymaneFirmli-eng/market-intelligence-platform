@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ecomarket_db
+    restart: always
+    environment:
+      POSTGRES_USER: ecomarket_user
+      POSTGRES_PASSWORD: ecomarket_password
+      POSTGRES_DB: ecomarket_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+
+
+#name: ecomarket-intelligence_pgdata
