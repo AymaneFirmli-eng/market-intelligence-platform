@@ -20,7 +20,7 @@ services:
 
     # Port mapping: Standard PostgreSQL port (Host:Container)
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
     # Data persistence: Named volume mapping
     volumes:
@@ -31,3 +31,9 @@ volumes:
   pgdata:
 
 #name: ecomarket-intelligence_pgdata
+
+
+#python src/db.py
+#python src/scraper.py
+#python src/cleaner.py
+#python src/gold_etl.py

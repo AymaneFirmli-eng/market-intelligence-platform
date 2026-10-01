@@ -10,13 +10,9 @@ import psycopg
 import pandas as pd
 
 # Database connection parameters
-DB_PARAMS = {
-    "dbname": "ecomarket_db",
-    "user": "ecomarket_user",
-    "password": "ecomarket_password",
-    "host": "localhost",
-    "port": "5432"
-}
+from src.credentials import DB_PARAMS
+
+
 
 # Rating mapping dictionary: converts textual word ratings to integers
 RATING_MAP = {
