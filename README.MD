@@ -1,10 +1,10 @@
-# 🛒 Market Intelligence Platform
+# 🛒 Market Intelligence Platform 🛒
 
 Une plateforme **End-to-End** de veille concurrentielle et d'analyse marché e-commerce, combinant **Data Engineering**, **Data Science / Machine Learning** et **IA Générative (RAG)**.
 
 ---
 
-## 🎯 Description Globale & Objectif Métier
+##  Description Globale & Objectif Métier
 
 Dans le secteur du retail et de l'e-commerce, suivre en continu la dynamique des prix, la disponibilité des produits et la perception des clients est stratégique.
 
@@ -17,7 +17,7 @@ Dans le secteur du retail et de l'e-commerce, suivre en continu la dynamique des
 
 ---
 
-## 🧠 Compétences & Skills Mobilisés
+##  Compétences & Skills Mobilisés
 
 - **Data Engineering** : Web scraping robuste, parsing DOM ultra-rapide (`selectolax`), validation de schéma (`Pydantic`), requêtage SQL avancé (`PostgreSQL 16`, `psycopg3`), modélisation Medallion (Bronze/Silver/Gold).
 - **Data Science & Analytics** : Exploration de données (EDA), analyse statistique, feature engineering, typage et nettoyage de données complexes.
@@ -27,7 +27,7 @@ Dans le secteur du retail et de l'e-commerce, suivre en continu la dynamique des
 
 ---
 
-## 🛠️ Stack Technique
+##  Stack Technique
 
 | Domaine | Technologies / Libraries |
 | :--- | :--- |
@@ -41,7 +41,7 @@ Dans le secteur du retail et de l'e-commerce, suivre en continu la dynamique des
 
 ---
 
-## 🏗️ Architecture des Données (Medallion Architecture)
+##  Architecture des Données (Medallion Architecture)
 
 ```text
 [ Web E-Commerce ]
@@ -60,3 +60,46 @@ Dans le secteur du retail et de l'e-commerce, suivre en continu la dynamique des
 ┌──────────────┐
 │  GOLD        │  gold_analytics / vector_embeddings (Tables prêtes pour ML & RAG)
 └──────────────┘
+
+##  Structure du Projet
+Plaintext
+ecomarket-intelligence/
+├── data/               # Dossiers d'exports et données brutes/processées
+├── sql/                # Scripts DDL de création des tables PostgreSQL
+│   ├── 01_create_raw_tables.sql
+│   └── 02_create_cleaned_tables.sql
+├── src/                # Code source de la plateforme
+│   ├── db.py           # Connexion PostgreSQL & activation de pgvector
+│   ├── scraper.py      # Extraction Web & Ingestion Bronze
+│   └── cleaner.py      # Transformation ETL Bronze -> Silver
+├── tests/              # Suite de tests unitaires et d'intégration
+├── docker-compose.yml  # Orchestration du service PostgreSQL + pgvector
+├── requirements.txt    # Dépendances Python versionnées
+└── README.md           # Documentation du projet
+
+
+## Installation & Démarrage Rapide
+ ** Cloner le projet et configurer l'environnement : **
+
+Bash
+git clone [https://github.com/AymaneFirmli-eng/ecomarket-intelligence.git](https://github.com/AymaneFirmli-eng/ecomarket-intelligence.git)
+cd ecomarket-intelligence
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+Lancer la base de données PostgreSQL via Docker :
+
+Bash
+docker compose up -d
+Initialiser la base et l'extension vectorielle :
+
+Bash
+python src/db.py
+Lancer l'ingestion Bronze (Web Scraping) :
+
+Bash
+python src/scraper.py
+Exécuter la transformation Silver (Data Cleaning) :
+
+Bash
+python src/cleaner.py
