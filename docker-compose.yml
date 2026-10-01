@@ -1,19 +1,33 @@
+# ==============================================================================
+# ECO-MARKET INTELLIGENCE - DOCKER INFRASTRUCTURE
+# ==============================================================================
+# This file defines the PostgreSQL service enriched with the 'pgvector' extension.
+# It isolates the database environment locally without affecting the host OS.
+# ==============================================================================
+
 services:
   postgres:
+    # Official pgvector image based on PostgreSQL 16
     image: pgvector/pgvector:pg16
     container_name: ecomarket_db
-    restart: always
+    restart: always # Automatically restart container on failure
+    
+    # Environment variables for database initialization
     environment:
       POSTGRES_USER: ecomarket_user
       POSTGRES_PASSWORD: ecomarket_password
       POSTGRES_DB: ecomarket_db
+
+    # Port mapping: Standard PostgreSQL port (Host:Container)
     ports:
       - "5432:5432"
+
+    # Data persistence: Named volume mapping
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+# Named volume managed by Docker for persistent storage
 volumes:
   pgdata:
-
 
 #name: ecomarket-intelligence_pgdata

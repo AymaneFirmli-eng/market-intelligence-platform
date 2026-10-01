@@ -1,6 +1,11 @@
-from pathlib import Path
+"""
+Database Connection & Initialization Module for PostgreSQL.
+Verifies server health and ensures 'pgvector' extension availability at startup.
+"""
+
 import psycopg
 
+# Connection parameters for local Docker container
 DB_PARAMS = {
     "dbname": "ecomarket_db",
     "user": "ecomarket_user",
@@ -9,31 +14,27 @@ DB_PARAMS = {
     "port": "5432"
 }
 
-def execute_sql_file(file_path: Path):
-    """Exécute un fichier .sql complet dans PostgreSQL."""
-    with psycopg.connect(**DB_PARAMS) as conn:
-        with conn.cursor() as cur:
-            with open(file_path, "r", encoding="utf-8") as f:
-                sql_script = f.read()
-                cur.execute(sql_script)
-            conn.commit()
-            print(f" Exécuté avec succès : {file_path.name}")
-
-def init_db():
+def init_db() -> None:
+    """
+    Establishes database connection, checks SGBD version,
+    and enables the 'pgvector' extension if not present.
+    """
     try:
-        # Activer pgvector
         with psycopg.connect(**DB_PARAMS) as conn:
             with conn.cursor() as cur:
+                # 1. Verify PostgreSQL version
+                cur.execute("SELECT version();")
+                version = cur.fetchone()
+                
+                # 2. Enable pgvector extension
                 cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
                 conn.commit()
-        
-        # Exécuter les scripts de création de tables dans le dossier sql
-        sql_dir = Path(__file__).parent.parent / "sql"
-        for sql_file in sorted(sql_dir.glob("*.sql")):
-            execute_sql_file(sql_file)
-
+                
+                print(" Successfully connected to PostgreSQL from Python!")
+                print(f" SGBD Version: {version[0] if version else 'Unknown'}")
+                print(" 'vector' extension (pgvector) successfully enabled.")
     except Exception as e:
-        print(f" Erreur lors de l'initialisation : {e}")
+        print(f" Database connection error: {e}")
 
 if __name__ == "__main__":
     init_db()

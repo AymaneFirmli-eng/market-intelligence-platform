@@ -1,10 +1,16 @@
-import time
-from urllib.parse import urljoin
+"""
+Web Scraping & Raw Data Ingestion Module (Bronze Layer).
+Uses HTTPX for networking, Selectolax for high-performance HTML parsing,
+Pydantic for schema validation, and Psycopg for idempotent PostgreSQL UPSERT.
+"""
+
+from __future__ import annotations
 import httpx
-from pydantic import BaseModel
 from selectolax.parser import HTMLParser
+from pydantic import BaseModel, Field
 import psycopg
 
+# PostgreSQL connection parameters
 DB_PARAMS = {
     "dbname": "ecomarket_db",
     "user": "ecomarket_user",
@@ -13,117 +19,127 @@ DB_PARAMS = {
     "port": "5432"
 }
 
-BASE_URL = "http://books.toscrape.com/"
+# ------------------------------------------------------------------------------
+# DATA CONTRACT (Pydantic Model)
+# ------------------------------------------------------------------------------
+class RawProduct(BaseModel):
+    """
+    Validation schema for raw scraped product data.
+    Enforces data contract before database ingestion.
+    """
+    title: str = Field(..., description="Product title")
+    price_raw: str = Field(..., description="Raw text price (e.g. £51.77)")
+    rating_raw: str = Field(..., description="Raw text rating (e.g. Three)")
+    availability_raw: str = Field(..., description="Raw stock availability string")
+    category: str = Field(..., description="Product category name")
+    product_url: str = Field(..., description="Product detail URL")
 
-class RawProductItem(BaseModel):
-    title: str
-    price_raw: str
-    rating_raw: str
-    availability_raw: str
-    category: str
-    product_url: str
+# ------------------------------------------------------------------------------
+# DOM PARSER (Selectolax Engine)
+# ------------------------------------------------------------------------------
+def parse_category_page(html_content: str, category_name: str) -> list[RawProduct]:
+    """
+    Parses catalog page HTML and extracts validated raw product records.
 
+    Args:
+        html_content (str): Raw HTML payload.
+        category_name (str): Assigned category label.
 
-def get_category_urls(client: httpx.Client) -> dict[str, str]:
-    """Récupère la liste des catégories et leurs URLs."""
-    response = client.get(BASE_URL)
-    parser = HTMLParser(response.text)
-    categories = {}
-    for a in parser.css("div.side_categories ul.nav-list ul li a"):
-        cat_name = a.text(strip=True)
-        cat_url = urljoin(BASE_URL, a.attributes.get("href", ""))
-        categories[cat_name] = cat_url
-    return categories
-
-
-def scrape_category(client: httpx.Client, cat_name: str, cat_url: str) -> list[RawProductItem]:
-    """Scrape toutes les pages d'une catégorie donnée."""
+    Returns:
+        list[RawProduct]: List of Pydantic-validated product objects.
+    """
+    tree = HTMLParser(html_content)
     products = []
-    current_url = cat_url
 
-    while current_url:
-        resp = client.get(current_url)
-        if resp.status_code != 200:
-            break
+    # Iterate over product container nodes in DOM
+    for node in tree.css("article.product_pod"):
+        title_node = node.css_first("h3 a")
+        price_node = node.css_first(".price_color")
+        rating_node = node.css_first("p.star-rating")
+        stock_node = node.css_first(".instock.availability")
 
-        parser = HTMLParser(resp.text)
-        for article in parser.css("article.product_pod"):
-            title_elem = article.css_first("h3 a")
-            title = title_elem.attributes.get("title", "") if title_elem else ""
-            rel_link = title_elem.attributes.get("href", "") if title_elem else ""
-            product_url = urljoin(current_url, rel_link)
+        if title_node and price_node:
+            title = title_node.attributes.get("title") or title_node.text(strip=True)
+            url = title_node.attributes.get("href", "")
+            price_raw = price_node.text(strip=True)
+            
+            # Extract star rating class (e.g. "star-rating Three" -> "Three")
+            rating_classes = rating_node.attributes.get("class", "") if rating_node else ""
+            rating_raw = rating_classes.replace("star-rating", "").strip()
+            
+            availability_raw = stock_node.text(strip=True) if stock_node else ""
 
-            price_elem = article.css_first("p.price_color")
-            price_raw = price_elem.text(strip=True) if price_elem else ""
-
-            rating_elem = article.css_first("p.star-rating")
-            rating_raw = ""
-            if rating_elem:
-                classes = rating_elem.attributes.get("class", "").split()
-                rating_raw = [c for c in classes if c != "star-rating"][0] if len(classes) > 1 else ""
-
-            avail_elem = article.css_first("p.instock.availability")
-            availability_raw = avail_elem.text(strip=True) if avail_elem else ""
-
-            item = RawProductItem(
+            # Instantiation & Pydantic schema validation
+            raw_p = RawProduct(
                 title=title,
                 price_raw=price_raw,
                 rating_raw=rating_raw,
                 availability_raw=availability_raw,
-                category=cat_name,
-                product_url=product_url
+                category=category_name,
+                product_url=url
             )
-            products.append(item)
-
-        next_page = parser.css_first("li.next a")
-        if next_page:
-            current_url = urljoin(current_url, next_page.attributes.get("href", ""))
-        else:
-            current_url = None
+            products.append(raw_p)
 
     return products
 
+# ------------------------------------------------------------------------------
+# DATABASE INGESTION (Bronze Layer / UPSERT Pattern)
+# ------------------------------------------------------------------------------
+def save_to_bronze(products: list[RawProduct]) -> None:
+    """
+    Inserts raw product records into 'bronze_products'.
+    Uses 'ON CONFLICT DO UPDATE' (UPSERT) to guarantee pipeline idempotency.
+    """
+    if not products:
+        return
 
-def save_raw_products(products: list[RawProductItem]):
-    """Insertion par lot (bulk insert) dans la table raw_products."""
-    query = """
+    # Idempotent SQL query handling URL conflicts
+    sql = """
     INSERT INTO bronze_products (title, price_raw, rating_raw, availability_raw, category, product_url)
     VALUES (%s, %s, %s, %s, %s, %s)
     ON CONFLICT (product_url) DO UPDATE SET
-    price_raw = EXCLUDED.price_raw,
-    rating_raw = EXCLUDED.rating_raw,
-    availability_raw = EXCLUDED.availability_raw,
-    scraped_at = CURRENT_TIMESTAMP;
+        title = EXCLUDED.title,
+        price_raw = EXCLUDED.price_raw,
+        rating_raw = EXCLUDED.rating_raw,
+        availability_raw = EXCLUDED.availability_raw,
+        category = EXCLUDED.category;
     """
+
+    records = [
+        (p.title, p.price_raw, p.rating_raw, p.availability_raw, p.category, p.product_url)
+        for p in products
+    ]
+
     with psycopg.connect(**DB_PARAMS) as conn:
         with conn.cursor() as cur:
-            data = [
-                (p.title, p.price_raw, p.rating_raw, p.availability_raw, p.category, p.product_url)
-                for p in products
-            ]
-            cur.executemany(query, data)
-        conn.commit()
+            cur.executemany(sql, records)
+            conn.commit()
 
+# ------------------------------------------------------------------------------
+# MULTI-PAGE SCRAPING ORCHESTRATION
+# ------------------------------------------------------------------------------
+def run_scraper():
+    """
+    Orchestrates web scraping execution across all catalog pages (50 pages).
+    """
+    base_url = "http://books.toscrape.com/catalogue/page-{}.html"
+    total_scraped = 0
+    print(" Starting Web Scraper...")
 
-def main():
-    print(" Démarrage du Web Scraping...")
-    start_time = time.time()
-    
     with httpx.Client(timeout=10.0) as client:
-        categories = get_category_urls(client)
-        print(f" {len(categories)} catégories trouvées.")
-        
-        total_scraped = 0
-        for cat_name, cat_url in categories.items():
-            products = scrape_category(client, cat_name, cat_url)
-            if products:
-                save_raw_products(products)
+        for page in range(1, 51):
+            url = base_url.format(page)
+            response = client.get(url)
+
+            if response.status_code == 200:
+                products = parse_category_page(response.text, category_name="General")
+                save_to_bronze(products)
                 total_scraped += len(products)
-                print(f" Category '{cat_name}': {len(products)} produits sauvegardés.")
+                print(f" Page {page}/50 processed: {len(products)} records ingested into bronze_products.")
+            else:
+                print(f" Request failed for page {page} (Status: {response.status_code})")
 
-    elapsed = round(time.time() - start_time, 2)
-    print(f"\n Scraping terminé en {elapsed}s ! Total: {total_scraped} produits insérés/mis à jour.")
-
+    print(f" Scraping complete! Total: {total_scraped} records stored in Bronze layer.")
 
 if __name__ == "__main__":
-    main()
+    run_scraper()
